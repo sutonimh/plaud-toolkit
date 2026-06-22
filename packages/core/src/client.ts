@@ -1,34 +1,38 @@
 import { PlaudAuth } from './auth.js';
-import { BASE_URLS } from './types.js';
-import type { PlaudRecording, PlaudRecordingDetail, PlaudUserInfo } from './types.js';
+import { BASE_URLS, fetchRequester } from './types.js';
+import type { PlaudRecording, PlaudRecordingDetail, PlaudUserInfo, Requester } from './types.js';
 
 export class PlaudClient {
   private auth: PlaudAuth;
   private region: string;
+  private requester: Requester;
 
-  constructor(auth: PlaudAuth, region: string = 'us') {
+  constructor(auth: PlaudAuth, region: string = 'us', requester: Requester = fetchRequester) {
     this.auth = auth;
     this.region = region;
+    this.requester = requester;
   }
 
   private get baseUrl(): string {
     return BASE_URLS[this.region] ?? BASE_URLS['us'];
   }
 
-  private async request(path: string, options?: RequestInit): Promise<any> {
+  private async request(path: string, options?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<any> {
     const token = await this.auth.getToken();
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      ...options,
+    const res = await this.requester({
+      url,
+      method: options?.method ?? 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...options?.headers,
       },
+      body: options?.body,
     });
 
     if (!res.ok) {
-      throw new Error(`Plaud API error: ${res.status} ${res.statusText}`);
+      throw new Error(`Plaud API error: ${res.status}`);
     }
 
     const data = await res.json();
@@ -82,7 +86,8 @@ export class PlaudClient {
 
   async downloadAudio(id: string): Promise<ArrayBuffer> {
     const token = await this.auth.getToken();
-    const res = await fetch(`${this.baseUrl}/file/download/${id}`, {
+    const res = await this.requester({
+      url: `${this.baseUrl}/file/download/${id}`,
       headers: { 'Authorization': `Bearer ${token}` },
     });
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);

@@ -85,6 +85,37 @@ describe('PlaudClient', () => {
     expect(user.nickname).toBe('Sergi');
   });
 
+  it('sends a non-default User-Agent header (Plaud blocks the "node" UA)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 0, data_file_list: [] }),
+    });
+
+    await client.listRecordings();
+
+    const [, init] = mockFetch.mock.calls[0];
+    const ua = new Headers(init.headers).get('User-Agent');
+    expect(ua).toBeTruthy();
+    expect(ua).not.toBe('node');
+  });
+
+  it('uses an injected requester instead of global fetch (Obsidian requestUrl path)', async () => {
+    const calls: string[] = [];
+    const requester = vi.fn(async (req: { url: string }) => {
+      calls.push(req.url);
+      return { status: 200, ok: true, json: async () => ({ status: 0, data_file_list: [] }), arrayBuffer: async () => new ArrayBuffer(0) };
+    });
+    const config = new PlaudConfig(tmpDir);
+    const auth = new PlaudAuth(config, requester);
+    const injected = new PlaudClient(auth, 'eu', requester);
+
+    await injected.listRecordings();
+
+    expect(requester).toHaveBeenCalled();
+    expect(calls[0]).toContain('/file/simple/web');
+    expect(mockFetch).not.toHaveBeenCalled(); // global fetch must NOT be used
+  });
+
   it('handles region mismatch', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,

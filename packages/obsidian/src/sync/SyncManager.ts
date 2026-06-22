@@ -147,7 +147,7 @@ export class SyncManager {
 
     let transcription: TranscriptionResult;
 
-    if (detail.transcript && detail.transcript.length > 20) {
+    if (hasRealTranscript(detail.transcript)) {
       transcription = parseServerTranscript(detail.transcript);
     } else if (bestAudioPath.endsWith('.opus')) {
       // Still only have the encrypted .opus — can't transcribe
@@ -301,7 +301,7 @@ export class SyncManager {
       const detail = await this.plugin.plaudClient.getRecordingDetail(plaudId);
       let transcription: TranscriptionResult | null = null;
 
-      if (detail.transcript && detail.transcript.length > 20) {
+      if (hasRealTranscript(detail.transcript)) {
         transcription = parseServerTranscript(detail.transcript);
       } else {
         // Find or download MP3
@@ -448,7 +448,7 @@ export class SyncManager {
           const detail = await this.plugin.plaudClient.getRecordingDetail(plaudId);
           let transcription: TranscriptionResult | null = null;
 
-          if (detail.transcript && detail.transcript.length > 20) {
+          if (hasRealTranscript(detail.transcript)) {
             transcription = parseServerTranscript(detail.transcript);
           } else {
             // Try to get an MP3 for local Whisper transcription
@@ -601,6 +601,8 @@ function epochMsToDate(epochMs: number): Date {
  * Derive a short contextual title from the transcript.
  * Only uses the transcript text — skips placeholder markers.
  */
+const MAX_CONTEXT_LEN = 60; // keep well under the 255-byte filename limit
+
 function deriveContext(
   _detail: PlaudFileDetail,
   _rec: PlaudFile,
@@ -609,6 +611,10 @@ function deriveContext(
   const text = transcription.text;
   // Skip placeholder markers
   if (!text || text.length < 20 || text.startsWith('*(')) return '';
+
+  // Skip non-transcript payloads (e.g. Plaud "marks" JSON returned before the
+  // real transcript is ready) — these aren't human-readable titles.
+  if (looksLikeJson(text)) return '';
 
   // Collect the first ~200 chars of real text, stripping speaker labels and markdown
   const lines = text.split('\n').filter(l => l.trim().length > 0);
@@ -628,9 +634,38 @@ function deriveContext(
   // Take first ~8 words for a concise title
   const words = collected.split(/\s+/).slice(0, 8).join(' ');
 
-  // Clean up: remove trailing punctuation, illegal filename chars
-  return words
-    .replace(/[\\/:*?"<>|]/g, '')
+  // Clean up: drop characters that are illegal or noisy in filenames, collapse
+  // whitespace, trim trailing punctuation, and hard-cap the length so a
+  // pathological transcript can never produce an over-long filename.
+  const cleaned = words
+    .replace(/[\\/:*?"<>|[\]{}]/g, '')
+    .replace(/\s+/g, ' ')
     .replace(/[.,;:!?]+$/, '')
+    .trim()
+    .slice(0, MAX_CONTEXT_LEN)
     .trim();
+
+  return cleaned.length >= 10 ? cleaned : '';
+}
+
+/**
+ * A Plaud `transcript` field is only usable if it's non-trivial AND not a raw
+ * data payload (e.g. the "marks" JSON returned before the real transcript is
+ * ready). Otherwise the recording should be treated as not-yet-transcribed.
+ */
+function hasRealTranscript(transcript: string | undefined | null): boolean {
+  return !!transcript && transcript.length > 20 && !looksLikeJson(transcript);
+}
+
+/** Heuristic: does this text look like a serialized JSON object/array? */
+function looksLikeJson(text: string): boolean {
+  const t = text.trim();
+  if (!/^[[{]/.test(t)) return false;
+  try {
+    JSON.parse(t);
+    return true;
+  } catch {
+    // Even if it doesn't parse cleanly, bail on obvious marks-data payloads.
+    return /"?mark_type"?|"?mark_content"?|"?timestamp"?/.test(t);
+  }
 }

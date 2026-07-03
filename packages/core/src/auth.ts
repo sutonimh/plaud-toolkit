@@ -2,7 +2,10 @@ import { PlaudConfig } from './config.js';
 import { BASE_URLS, fetchRequester } from './types.js';
 import type { PlaudTokenData, Requester } from './types.js';
 
-const TOKEN_REFRESH_BUFFER_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// Docs claim ~300-day token lifetime, but observed tokens expire in ~30 days.
+// A 30-day buffer against a 30-day lifetime would force a re-login on every
+// call, so keep the buffer well under the shortest lifetime we've seen.
+const TOKEN_REFRESH_BUFFER_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
 export class PlaudAuth {
   private config: PlaudConfig;

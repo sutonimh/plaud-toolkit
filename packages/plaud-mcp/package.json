@@ -1,0 +1,15 @@
+{
+  "name": "plaud-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "smoke": "tsx src/smoke.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@plaud/core": "*",
+    "zod": "^4.4.3"
+  }
+}

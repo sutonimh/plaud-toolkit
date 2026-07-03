@@ -5,7 +5,9 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "smoke": "tsx src/smoke.ts"
+    "smoke": "tsx src/smoke.ts",
+    "smoke:list": "tsx src/smoke-list.ts",
+    "smoke:client": "tsx src/smoke-client.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

@@ -5,15 +5,19 @@
 import { PlaudConfig } from '@plaud/core';
 import { PlaudReadOnlyClient, RecordingNotFoundError } from './client.js';
 
-const SHORT_ID = 'REDACTED_RECORDING_ID';
-const LONG_ID = 'REDACTED_RECORDING_ID';
+const ids = process.argv.slice(2);
+if (ids.length === 0) {
+  console.error('Usage: tsx smoke-client.ts <recording_id> [recording_id...]');
+  console.error('Get IDs from: npm run smoke:list -w plaud-mcp');
+  process.exit(1);
+}
 
 async function main() {
   const config = new PlaudConfig();
   const creds = config.getCredentials()!;
   const client = new PlaudReadOnlyClient(config, creds.region);
 
-  for (const id of [SHORT_ID, LONG_ID]) {
+  for (const id of ids) {
     console.log(`\n=== ${id} ===`);
     const meta = await client.getRecording(id);
     console.log('metadata:', meta);
